@@ -18,7 +18,7 @@ maintained privately by SMG.
 In Xcode: **File → Add Package Dependencies…** and enter
 
 ```
-https://github.com/ServiceManagementGroup/smg-survey-sdk-ios
+https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist
 ```
 
 Choose the version you want (semantic versioning; each tag is immutable).
@@ -27,11 +27,11 @@ Or in a `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ServiceManagementGroup/smg-survey-sdk-ios", from: "0.3.0")
+    .package(url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist", from: "0.3.0")
 ],
 targets: [
     .target(name: "YourApp", dependencies: [
-        .product(name: "SMGSurveyKit", package: "smg-survey-sdk-ios")
+        .product(name: "SMGSurveyKit", package: "smg-mobile-sdk-dist")
     ])
 ]
 ```
