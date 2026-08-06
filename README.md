@@ -1,19 +1,27 @@
-# SMG App SDK — iOS
+# SMG App SDK
 
-Native in-app survey SDK (digital intercept) for iOS. Surveys render natively (no
-webview), fire on in-app events / screen loads / manual calls, and responses are
-submitted to SMG's collection API.
+Native in-app survey SDK (digital intercept) for **iOS and Android**. Surveys
+render natively (no webview), fire on in-app events / screen loads / manual
+calls, and responses are submitted to SMG's collection API.
 
-This repository is the **distribution channel**: it contains the compiled
-XCFramework and the Swift Package manifest that points at it. The SDK source is
-maintained privately by SMG.
+This repository is the **distribution channel** for both platforms: it holds the
+compiled artifacts and the metadata clients resolve them through. The SDK source
+is maintained privately by SMG.
 
-## Requirements
+| | iOS | Android |
+|---|---|---|
+| Artifact | `SMGSurveyKit.xcframework` | `smg-surveysdk-<version>.aar` |
+| Served from | GitHub Releases on this repo | static Maven repo on this repo's GitHub Pages |
+| Resolved with | Swift Package Manager | Gradle |
+| Credentials needed | none | none |
 
-- iOS 15+
-- Xcode 15+
+Latest version: **0.4.0**.
 
-## Install (Swift Package Manager)
+---
+
+## iOS
+
+**Requirements:** iOS 15+, Xcode 15+.
 
 In Xcode: **File → Add Package Dependencies…** and enter
 
@@ -21,13 +29,11 @@ In Xcode: **File → Add Package Dependencies…** and enter
 https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist
 ```
 
-Choose the version you want (semantic versioning; each tag is immutable).
-
 Or in a `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist", from: "0.3.0")
+    .package(url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist", from: "0.4.0")
 ],
 targets: [
     .target(name: "YourApp", dependencies: [
@@ -36,9 +42,9 @@ targets: [
 ]
 ```
 
-## Usage
-
-The module is `SMGSurveyKit`; the entry point is the `SMGSurveySDK` facade.
+The module is `SMGSurveyKit`; the entry point is the `SMGSurveySDK` facade. The
+two names differ on purpose — a top-level type named like its module breaks the
+library-evolution interface in client builds.
 
 ```swift
 import SMGSurveyKit
@@ -63,15 +69,115 @@ SMGSurveySDK.setConsent(granted: true)
 SMGSurveySDK.deleteAllLocalData()
 ```
 
+### Objective-C
+
+The SDK ships an Objective-C bridge covering the same surface — Swift structs
+and enums are invisible to Objective-C, so the bridge takes plain `NSString` and
+`UIColor`.
+
+```objc
+@import SMGSurveyKit;
+
+[SMGSurveySDKBridge configureWithApiKey:@"<your key>"
+                              projectId:@"<your project>"
+                            environment:@"production"];
+
+[SMGSurveySDKBridge trackScreenViewWithName:@"cart"];
+[SMGSurveySDKBridge trackEventWithName:@"order_completed"
+                            properties:@{@"payment_method": @"apple_pay"}];
+
+SMGThemeBridge *theme = [SMGThemeBridge new];
+theme.primary = brandColor;
+[SMGSurveySDKBridge setTheme:theme];
+```
+
+---
+
+## Android
+
+**Requirements:** minSdk 26.
+
+Add the repository and the coordinate. The Maven layout is plain files over
+HTTPS — no credentials, and no `read:packages` token.
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://servicemanagementgroup.github.io/smg-mobile-sdk-dist/maven") }
+    }
+}
+
+// app/build.gradle.kts
+dependencies {
+    implementation("com.smg:smg-surveysdk:0.4.0")
+}
+```
+
+```kotlin
+import com.smg.surveysdk.Env
+import com.smg.surveysdk.SMGSurveySDK
+import com.smg.surveysdk.SMGTheme
+
+// At app launch — non-blocking.
+SMGSurveySDK.configure(
+    context = this,
+    apiKey = "<your key>",
+    projectId = "<your project>",
+    env = Env.PRODUCTION,
+)
+
+SMGSurveySDK.trackScreenView("cart")
+SMGSurveySDK.trackEvent(
+    "order_completed",
+    mapOf("payment_method" to "google_pay", "order_id" to "A1234"),
+)
+
+SMGSurveySDK.setTheme(SMGTheme(primary = brandColor))
+SMGSurveySDK.setConsent(granted = true)
+SMGSurveySDK.deleteAllLocalData()
+```
+
+### Java
+
+Every entry point is `@JvmStatic`, so Java calls it the same way. Themes are the
+one exception: build them rather than using the positional constructor, which
+would force you to spell out every preceding token.
+
+```java
+SMGSurveySDK.configure(this, "<your key>", "<your project>", Env.PRODUCTION);
+SMGSurveySDK.trackScreenView("cart");
+
+SMGSurveySDK.setTheme(new SMGTheme.Builder()
+    .primary(0xFF003366)
+    .textOnAccent(0xFFFFFFFF)
+    .build());
+```
+
+Colors are packed ARGB ints, the same as `android.graphics.Color`.
+
+---
+
+## How it behaves
+
 Surveys, trigger rules, theming and suppression are configured **server-side by
-SMG** — your app only supplies credentials and instrumentation. The SDK never
-throws into your app: any internal failure is logged and swallowed.
+SMG** — your app only supplies credentials and instrumentation.
 
-Without a valid, entitled API key the SDK is inert (no surveys, no submissions).
+- **The SDK never throws into your app.** Every public entry point catches
+  internally; a failure is logged and swallowed. A survey that does not show is
+  acceptable, a host-app crash is not.
+- **No third-party dependencies** on either platform.
+- **Inert without entitlement.** Without a valid, entitled API key there are no
+  surveys and no submissions — which is why these artifacts are safe to serve
+  publicly.
 
-## Objective-C
+## Versioning
 
-The SDK ships an Objective-C bridge; see the `SMGSurveySDKBridge` class.
+Semantic versioning; each tag is immutable. A published SwiftPM checksum is
+pinned by every client that already resolved it, so an artifact is never
+replaced under an existing tag — fixes ship as a new patch version.
 
 ## Support
 
