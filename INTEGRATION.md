@@ -49,6 +49,11 @@ Two guarantees worth stating up front:
   this.
 - **No third-party dependencies** on either platform.
 
+There is no delegate, listener or callback anywhere on the surface: your app cannot
+observe that a survey was shown, answered or dismissed, and cannot read the answers.
+Responses go to SMG and are read from SMG's reporting. If you need an in-app signal,
+say so — it does not exist in 0.4.0.
+
 ---
 
 ## 2. Requirements
@@ -166,7 +171,11 @@ application context), iOS does not. Android's parameter is `env`, not
 
 Get `apiKey` and `projectId` from your SMG implementation engineer. Without a
 valid, entitled key the SDK is inert: no surveys, no submissions, no errors thrown
-at you.
+at you. Nothing is validated at the call site — a wrong key produces a failed config
+fetch in the log, not an error you can catch.
+
+**`configure` takes effect once.** A second call is ignored and logged, so you
+cannot swap credentials at runtime, not even after `deleteAllLocalData()`.
 
 ### ⚠️ Point the SDK at a collection endpoint
 
@@ -236,8 +245,11 @@ and their allowed values with SMG — an unexpected value simply fails to match,
 nothing happens.
 
 **Never put personal data in properties.** No emails, phone numbers, card numbers,
-free-text the user typed. The SDK sanitizes and caps what it forwards, but the
-contract is that these are non-PII attributes.
+free-text the user typed. These are non-PII attributes by contract.
+
+Entries that exceed the limits are **dropped whole, not truncated**, and only the
+OS log says so: a key over 64 characters, a value over 256, and beyond 20 keys only
+the first 20 alphabetically survive. Keep property sets small and short.
 
 ### Manual presentation
 
@@ -251,9 +263,17 @@ SMGSurveySDK.presentSurvey(surveyId: "svy_quick_feedback")
 SMGSurveySDK.presentSurvey("svy_quick_feedback")
 ```
 
+**This is not a force-show.** The survey must have a placement configured with
+`trigger_type: manual`; a valid survey ID with no manual placement does nothing,
+silently. If you want a button to open a specific survey, ask SMG to add that
+placement — this is the most common reason a "Give feedback" button appears dead.
+
 Both platforms accept an optional `style` to override the survey's configured
 presentation for that one call. On iOS you may also pass an explicit
 `from: UIViewController`; omit it and the SDK finds the top-most one.
+
+To render a survey unconditionally while developing, use `previewSurvey` (§9),
+which ignores placements and gating entirely.
 
 ---
 
@@ -382,9 +402,15 @@ SMGSurveySDK.setConsent(granted: false)
 SMGSurveySDK.setConsent(granted = false)
 ```
 
-With consent withheld the SDK stops presenting surveys and stops submitting. The
-flag persists across launches (`UserDefaults` on iOS, shared preferences on
-Android).
+With consent withheld the SDK stops evaluating triggers, stops refreshing
+configuration and stops submitting, on both platforms. The flag persists across
+launches (`UserDefaults` on iOS, shared preferences on Android).
+
+One platform difference matters if you withdraw consent from a consent-management
+screen while a survey could be on screen: **Android dismisses a survey that is
+already displayed; iOS leaves it up.** On iOS the survey stays answerable and only
+the submission is discarded. If your flow needs the survey gone immediately on iOS,
+withdraw consent at a point where one cannot be showing.
 
 **The default is granted.** If your app operates under an opt-in regime, call
 `setConsent(granted: false)` before or immediately after `configure` and only flip
@@ -534,8 +560,12 @@ per period" hold across restarts rather than resetting every launch.
 
 ## 11. API reference
 
-Every method is fail-safe: none throws, none blocks on the network. Calls made
-before `configure` are held or ignored rather than crashing.
+Every method on the integration surface is fail-safe: none throws, none blocks on
+the network. Calls made before `configure` are held or ignored rather than crashing.
+
+The debug helpers in §9 are held to a looser standard — on iOS they are not wrapped
+in the same catch-all, and `pendingResponseCount()` blocks briefly on an internal
+queue. They are bring-up tools, not something to call on a hot path in production.
 
 ### Swift — `SMGSurveySDK` (module `SMGSurveyKit`)
 
@@ -553,7 +583,7 @@ static func previewSurvey(surveyId: String, style: SMGPresentationStyle? = nil,
 
 static func setTheme(_ theme: SMGTheme)
 static func setConsent(granted: Bool)
-static func setLocaleOverride(_ localeIdentifier: String?)
+static func setLocaleOverride(_ localeIdentifier: String?)   // not persisted; re-apply after each configure
 static func deleteAllLocalData()
 
 static func setCollectionBaseURL(_ url: URL?)
@@ -573,6 +603,10 @@ Public types: `SMGEnvironment { .staging, .production }`,
 `SMGPresentationStyle { .modal, .bottomSheet, .banner }`,
 `SMGMockMode { .normal, .offline, .revokedKey }`, and `SMGTheme` (12 optional
 `UIColor?` tokens plus `font: String?`).
+
+`SMGThemeGallery` is also public — five ready-made palettes used for QA. Two of them
+are deliberately rule-violating, to exercise the token fallback, so treat it as a
+test fixture rather than a source of brand themes.
 
 ### Objective-C
 
@@ -615,7 +649,7 @@ fun previewSurvey(surveyId: String?, style: SMGPresentationStyle? = null)
 
 fun setTheme(theme: SMGTheme?)
 fun setConsent(granted: Boolean)
-fun setLocaleOverride(localeTag: String?)
+fun setLocaleOverride(localeTag: String?)   // not persisted; re-apply after each configure
 fun deleteAllLocalData()
 
 fun setCollectionBaseUrl(url: String?)
@@ -673,9 +707,11 @@ the first ~200 ms can miss its placement. It resolves on the next visit and ever
 later session is immediate.
 
 **`presentSurvey` does nothing.**
-The survey ID must exist in the current configuration, and the cooldown still
-applies to manual presentation. Confirm with `previewSurvey`, which ignores gating —
-if preview shows it, the survey is fine and you are looking at a gate.
+Most often the survey has no `manual` placement configured — a valid survey ID is
+not enough, and the failure is silent. Ask SMG to add one. Failing that, the
+cooldown still applies to manual presentation. Confirm with `previewSurvey`, which
+ignores placements and gating: if preview shows the survey, the survey itself is
+fine and you are looking at a missing placement or a gate.
 
 **Android: nothing presents.**
 The current Activity must be an AndroidX `ComponentActivity`
