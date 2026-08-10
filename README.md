@@ -17,6 +17,10 @@ is maintained privately by SMG.
 
 Latest version: **0.4.0**.
 
+📖 **[Integration guide](INTEGRATION.md)** — install, instrumentation, theming,
+consent, bring-up tooling, full API reference and troubleshooting. Start there for
+anything beyond the snippets below.
+
 ---
 
 ## iOS
@@ -45,6 +49,10 @@ targets: [
 The module is `SMGSurveyKit`; the entry point is the `SMGSurveySDK` facade. The
 two names differ on purpose — a top-level type named like its module breaks the
 library-evolution interface in client builds.
+
+> **New integration?** By default the SDK serves surveys from a mock bundled
+> inside it. Point it at a real endpoint with `setCollectionBaseURL` — see
+> [Integration guide §4](INTEGRATION.md#4-configure).
 
 ```swift
 import SMGSurveyKit
@@ -181,4 +189,7 @@ replaced under an existing tag — fixes ship as a new patch version.
 
 ## Support
 
-Contact your SMG implementation engineer.
+Start with the [integration guide](INTEGRATION.md) — its troubleshooting section
+covers the failure modes integrators actually hit. Beyond that, contact your SMG
+implementation engineer with your project ID, the SDK version (`sdkVersion`) and a
+dry-run log.
