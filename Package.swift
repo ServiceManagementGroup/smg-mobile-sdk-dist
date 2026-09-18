@@ -2,7 +2,7 @@
 // Public distribution package for the SMG App SDK (iOS).
 //
 // This repository ships only the compiled XCFramework and this manifest — the
-// SDK source lives in the private ServiceManagementGroup/mobile-sdk repo.
+// SDK source is maintained separately.
 // Each release tag here points at the artifact attached to that same tag.
 import PackageDescription
 
