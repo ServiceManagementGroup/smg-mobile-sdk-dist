@@ -83,7 +83,7 @@ SMGSurveySDK.configure(
 Using [Objective-C](API_REFERENCE.md#objective-c) or [Java](API_REFERENCE.md#java)?
 Use the equivalent setup in the API reference.
 
-Stage automatically uses `https://mobile-sdk-stage.smg.com/api/sdk/v1`.
+Stage uses the SDK's default collection endpoint.
 For **production**, use production credentials and `.production` / `Env.PRODUCTION`,
 and set the URL supplied by SMG **before `configure`**:
 

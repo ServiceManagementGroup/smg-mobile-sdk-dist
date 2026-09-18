@@ -42,7 +42,7 @@ dark)` or `SMGColor.fromResource(R.color.brand)` with `values`/`values-night`
 resources; `SMGColor(color)` uses one color in both modes. Java's builder accepts
 the same forms. The Kotlin constructor requires `SMGColor`, not a raw integer.
 
-Contrast is checked when server themes are published in Forge. The SDK does not
+Contrast is checked when server themes are published. The SDK does not
 reject host colors for contrast; check your overrides in both appearances. It
 range-checks scalar theme values and exposes server/local diagnostics through
 `lastThemeValidationMessages()` after theme resolution.
