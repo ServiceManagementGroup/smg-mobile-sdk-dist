@@ -1,0 +1,104 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.smg",
+    "module": "smg-surveysdk",
+    "version": "0.5.4",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.14.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.2.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "smg-surveysdk-0.5.4.aar",
+          "url": "smg-surveysdk-0.5.4.aar",
+          "size": 367187,
+          "sha512": "e59005125ccf113c80e6b1dac3197142381cc9ed3cc795c78a10086b08bc4f481038662d5cc9e956a252feff47413f907ddb40e5b58df9c6138e549dd43b63c7",
+          "sha256": "60d6d3a6a0605ef8160a0699535a92317bae638ca474d0b196ea2a4cf9e83e7e",
+          "sha1": "d16f637bcab81b4a812a8d3946517b0744f6918a",
+          "md5": "5e0c557874e4ddf0932be8ddbf3b89d8"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.activity",
+          "module": "activity-compose",
+          "version": {
+            "requires": "1.12.0"
+          }
+        },
+        {
+          "group": "androidx.compose.foundation",
+          "module": "foundation",
+          "version": {
+            "requires": "1.10.6"
+          }
+        },
+        {
+          "group": "androidx.compose.material3",
+          "module": "material3",
+          "version": {
+            "requires": "1.4.0"
+          }
+        },
+        {
+          "group": "androidx.compose.ui",
+          "module": "ui",
+          "version": {
+            "requires": "1.10.6"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.2.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "smg-surveysdk-0.5.4.aar",
+          "url": "smg-surveysdk-0.5.4.aar",
+          "size": 367187,
+          "sha512": "e59005125ccf113c80e6b1dac3197142381cc9ed3cc795c78a10086b08bc4f481038662d5cc9e956a252feff47413f907ddb40e5b58df9c6138e549dd43b63c7",
+          "sha256": "60d6d3a6a0605ef8160a0699535a92317bae638ca474d0b196ea2a4cf9e83e7e",
+          "sha1": "d16f637bcab81b4a812a8d3946517b0744f6918a",
+          "md5": "5e0c557874e4ddf0932be8ddbf3b89d8"
+        }
+      ]
+    }
+  ]
+}
