@@ -1,99 +1,96 @@
 # Integration guide
 
-How to put the SMG App SDK into an iOS or Android app, from install to a survey on
-screen. For the short version, see the [README](README.md).
+How to add the SMG App SDK to an iOS or Android app, from installation to a survey
+on screen. For shorter examples, see the [README](README.md).
 
-Applies to **0.4.0**.
+Applies to **[0.5.4](https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/tag/0.5.4)**,
+reviewed September 18, 2026 against that release's SDK source and public artifacts.
+The examples use APIs available in this version. `configuredSurveys()` was added
+in 0.5.4; upgrade before using the catalog examples with an older integration.
 
-**Contents**
+## Contents
 
 1. [How it works](#1-how-it-works)
 2. [Requirements](#2-requirements)
 3. [Install](#3-install)
 4. [Configure](#4-configure)
 5. [Instrument your app](#5-instrument-your-app)
-6. [When a survey actually appears](#6-when-a-survey-actually-appears)
+6. [When a survey appears](#6-when-a-survey-appears)
 7. [Theming](#7-theming)
 8. [Consent and privacy](#8-consent-and-privacy)
-9. [Bring-up toolkit](#9-bring-up-toolkit)
+9. [Integration tools](#9-integration-tools)
 10. [Offline and reliability](#10-offline-and-reliability)
 11. [API reference](#11-api-reference)
 12. [Troubleshooting](#12-troubleshooting)
 
----
-
 ## 1. How it works
 
-Your app supplies **credentials and instrumentation**. SMG owns **everything else**
-— which surveys exist, what they ask, when they fire, how often, and how they look.
-All of that is served as a configuration document the SDK fetches and caches; you
-change it in the SMG platform, not in your app, and it takes effect without a
-release.
+Your app supplies credentials, consent and instrumentation. SMG configuration
+supplies the surveys, placement rules, appearance and suppression settings. The
+SDK fetches that configuration over HTTP, caches it, renders surveys natively and
+submits responses to the collection API.
 
-Concretely, your app does three things:
+Your app calls `configure` once at launch, `trackScreenView` when a screen appears,
+and `trackEvent` when a relevant action happens. A feedback button can call
+`presentSurvey` for a survey with a manual placement. Agree screen names, event
+names, property values and manual survey IDs with your SMG implementation contact.
 
-```
-configure(...)          once at launch
-trackScreenView(...)    as the user navigates
-trackEvent(...)         when something meaningful happens
-```
+The SDK ships **no mock transport or bundled survey catalog**. Installing the
+artifact does not provision an API key, project, endpoint or survey configuration.
 
-The SDK decides whether any of those should show a survey, renders it natively
-(no webview), and submits the response.
+The public methods do not expose throwing APIs; SDK failures are logged and handled
+internally. This is not a guarantee against every process crash: for example,
+Swift error handling does not catch Swift traps or Objective-C exceptions.
 
-Two guarantees worth stating up front:
-
-- **The SDK never throws into your app.** Every public entry point catches
-  internally; a failure is logged and swallowed. A survey that does not show is
-  acceptable; a host-app crash is not. You do not need `try`/`catch` around any of
-  this.
-- **No third-party dependencies** on either platform.
-
-There is no delegate, listener or callback anywhere on the surface: your app cannot
-observe that a survey was shown, answered or dismissed, and cannot read the answers.
-Responses go to SMG and are read from SMG's reporting. If you need an in-app signal,
-say so — it does not exist in 0.4.0.
-
----
+There are no public survey lifecycle callbacks or answer getters in 0.5.4. The
+catalog API returns survey metadata, not responses or presentation notifications.
 
 ## 2. Requirements
 
 | | iOS | Android |
 |---|---|---|
-| OS floor | iOS 15+ | minSdk 26 |
-| Tooling | Xcode 15+ | AGP 8+ |
-| Language | Swift 5.9+, or Objective-C via the bridge | Kotlin **2.1+** if you consume it from Kotlin, or Java 8+ |
-| Dependencies added | none | none |
-| Permissions added | none | none |
+| OS | iOS 15+ | minSdk 26+ |
+| Build tooling | Xcode with SwiftPM; package manifest uses Swift tools 5.9 | compileSdk 36+; JDK 17+; SDK built with AGP 8.13.2 |
+| Host language | Swift or Objective-C through the shipped bridge | Kotlin 2.1+ for Kotlin callers, or Java |
+| Runtime dependencies | Apple frameworks | Kotlin, AndroidX, Jetpack Compose and Material 3, resolved by Gradle |
+| SDK manifest permissions | No additional app permission | `android.permission.INTERNET` is contributed by the AAR |
 
-**Kotlin 2.1 is a hard floor for Kotlin callers**, not a recommendation: the AAR
-carries Kotlin 2.2 metadata that earlier compilers cannot read. Java callers are
-unaffected — a pure-Java host works on Java 8+.
+Use an Xcode version compatible with the published framework's Swift module
+interface. The package manifest's tools version is not a guarantee that every
+older Xcode can import a binary built with a newer Swift compiler.
 
-On Android, presenting a survey requires the current Activity to be an AndroidX
-`ComponentActivity`. `AppCompatActivity` and `FragmentActivity` both qualify, so
-most apps already satisfy this.
+The AAR is built with Kotlin 2.2 and targets Java 8 bytecode. Kotlin callers need
+Kotlin 2.1+ to read its metadata; Java 8 bytecode compatibility does not mean Gradle
+can run on JDK 8. Use an AGP version compatible with your compile SDK and the
+resolved AndroidX dependencies; the SDK build uses AGP 8.13.2 and Kotlin 2.2.21.
 
----
+Android presentation requires a resumed AndroidX `ComponentActivity`.
+`FragmentActivity` and `AppCompatActivity` qualify; a plain `android.app.Activity`
+does not. Your host UI can use Views or Compose. Configure the SDK in
+`Application.onCreate()` so it can observe the first Activity's lifecycle.
 
 ## 3. Install
 
-Both channels are public and need **no credentials** — no token, no `.netrc`, no
-`~/.gradle` entry.
+Artifact downloads are public and require no GitHub token or package credentials.
+The collection API separately requires the credentials supplied by SMG.
 
 ### iOS — Swift Package Manager
 
-In Xcode: **File → Add Package Dependencies…**, then
+In Xcode, choose **File → Add Package Dependencies…**, enter the URL below, select
+version **0.5.4**, and add the **SMGSurveyKit** product to your app target:
 
-```
+```text
 https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist
 ```
 
-Or in a `Package.swift`:
+For a package-based host:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist", from: "0.4.0")
+    .package(
+        url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist",
+        exact: "0.5.4"
+    )
 ],
 targets: [
     .target(name: "YourApp", dependencies: [
@@ -102,10 +99,11 @@ targets: [
 ]
 ```
 
-You get a binary XCFramework (device + simulator). The module you import is
-**`SMGSurveyKit`**; the class you call is **`SMGSurveySDK`**. They differ on
-purpose — a top-level type named after its own module breaks the
-library-evolution interface in client builds.
+This resolves the compiled XCFramework for device and simulator. Import
+`SMGSurveyKit`; call the `SMGSurveySDK` facade. Pinning the release keeps your
+integration aligned with this guide; choose a version range if your update policy
+allows later releases. Do not use the distribution repository's branch as a
+version pin.
 
 ### Android — Gradle
 
@@ -115,205 +113,224 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://servicemanagementgroup.github.io/smg-mobile-sdk-dist/maven") }
+        maven {
+            url = uri("https://servicemanagementgroup.github.io/smg-mobile-sdk-dist/maven")
+        }
     }
 }
 
 // app/build.gradle.kts
+android {
+    compileSdk = 36
+    defaultConfig {
+        minSdk = 26
+    }
+}
+
 dependencies {
-    implementation("com.smg:smg-surveysdk:0.4.0")
+    implementation("com.smg:smg-surveysdk:0.5.4")
 }
 ```
 
-That URL is a static Maven layout served over HTTPS — plain files, which is why no
-authentication is involved.
-
-No ProGuard/R8 rules are needed. The SDK ships a consumer rules file that is
-deliberately empty: it uses no reflection-based serialization, so there is nothing
-for you to keep.
-
----
+Gradle resolves the AAR and its transitive dependencies from the published Maven
+metadata. Prefer the Maven dependency to copying the AAR alone, which would leave
+you responsible for those dependencies. The SDK requires no extra ProGuard/R8
+keep rules; its consumer rules file is empty.
 
 ## 4. Configure
 
-Call this once, as early as you can. It is **non-blocking** — configuration is
-fetched in the background and cached; the call returns immediately.
+Obtain an API key and project ID for the intended environment. For production,
+also obtain the approved HTTPS collection base URL, including its API path.
 
-**Swift**
+| Environment | Endpoint behavior |
+|---|---|
+| `.staging` / `Env.STAGING` | Defaults to `https://mobile-sdk-stage.smg.com/api/sdk/v1` |
+| `.production` / `Env.PRODUCTION` | No built-in endpoint; set the supplied URL before `configure` |
+| Explicit URL override | Takes precedence over the environment default |
+
+Set any required consent and locale overrides before configuring. Configuration
+fetches run asynchronously; returning from `configure` does not mean a survey is
+ready. Credentials and project/environment are initialized once per process;
+later calls do not switch them, including after `deleteAllLocalData()`.
+
+**Swift — Stage setup at app launch**
 
 ```swift
 import SMGSurveyKit
 
+// Read this from your app's consent state.
+SMGSurveySDK.setConsent(granted: hasSurveyConsent)
 SMGSurveySDK.configure(
-    apiKey: "<your key>",
-    projectId: "<your project>",
-    environment: .production   // or .staging
+    apiKey: "<staging-api-key>",
+    projectId: "<staging-project-id>",
+    environment: .staging
 )
 ```
 
-**Kotlin**
+**Kotlin — Stage setup in `Application.onCreate()`**
 
 ```kotlin
 import com.smg.surveysdk.Env
 import com.smg.surveysdk.SMGSurveySDK
 
+// Read this from your app's consent state.
+SMGSurveySDK.setConsent(granted = hasSurveyConsent)
 SMGSurveySDK.configure(
     context = this,
-    apiKey = "<your key>",
-    projectId = "<your project>",
-    env = Env.PRODUCTION,      // or Env.STAGING
+    apiKey = "<staging-api-key>",
+    projectId = "<staging-project-id>",
+    env = Env.STAGING,
 )
 ```
 
-Note the asymmetry: Android needs a `Context` (any will do — it keeps the
-application context), iOS does not. Android's parameter is `env`, not
-`environment`.
-
-Get `apiKey` and `projectId` from your SMG implementation engineer. Without a
-valid, entitled key the SDK is inert: no surveys, no submissions, no errors thrown
-at you. Nothing is validated at the call site — a wrong key produces a failed config
-fetch in the log, not an error you can catch.
-
-**`configure` takes effect once.** A second call is ignored and logged, so you
-cannot swap credentials at runtime, not even after `deleteAllLocalData()`.
-
-### ⚠️ Point the SDK at a collection endpoint
-
-**In 0.4.0 the SDK talks to a mock transport bundled inside it by default.** If you
-integrate and never set a base URL, you will see the SDK's built-in demo surveys —
-a fictional restaurant called "SMG Burgers" — rather than your own, and responses
-go to an in-app store instead of SMG.
-
-That is almost never what you want, and it looks like a working integration, so it
-is worth checking explicitly:
+For **production**, use production credentials and select `.production` /
+`Env.PRODUCTION`. Before `configure`, supply your provisioned endpoint:
 
 ```swift
-SMGSurveySDK.setCollectionBaseURL(URL(string: "https://<endpoint from SMG>"))
+// collectionBaseURL is the URL supplied by SMG for your production environment.
+SMGSurveySDK.setCollectionBaseURL(collectionBaseURL)
 ```
 
 ```kotlin
-SMGSurveySDK.setCollectionBaseUrl("https://<endpoint from SMG>")
+// collectionBaseUrl is the full HTTPS base URL supplied by SMG.
+SMGSurveySDK.setCollectionBaseUrl(collectionBaseUrl)
 ```
 
-Call it **before or right after** `configure`; it takes effect for all subsequent
-config fetches and response submissions, including anything already queued.
-Passing `nil` / `null` returns to the bundled mock. HTTPS is required (loopback
-hosts are exempt so you can point at a local stack during bring-up).
+Keep endpoint selection in app initialization. Changing it also redirects later
+delivery of responses already queued. If you correct the endpoint after
+configuration, call `refreshConfiguration()` to request a new config.
 
-Ask your SMG contact for the endpoint for your environment. A future release will
-flip the default so an unconfigured SDK is inert rather than demo-populated.
-
----
+Passing `nil` / `null` clears the active endpoint; network operations then fail
+internally with `notConfigured`. It does not erase a usable configuration cache
+or switch to demo data. To restore networking, explicitly set the intended URL.
+Use `setConsent(false)` to gate SDK activity rather than using an unset endpoint.
+Production integrations should use HTTPS; local development exceptions are not a
+production transport option.
 
 ## 5. Instrument your app
 
+Replace the sample names and IDs below with the ones configured for your project.
+
 ### Screen views
 
+Call when the screen becomes visible, such as `viewDidAppear` on iOS or the
+appropriate navigation/lifecycle hook on Android. Avoid emitting a new screen
+view on every SwiftUI body evaluation or Compose recomposition.
+
 ```swift
-SMGSurveySDK.trackScreenView(name: "cart")
 SMGSurveySDK.trackScreenView(name: "cart", properties: ["tier": "gold"])
 ```
 
 ```kotlin
-SMGSurveySDK.trackScreenView("cart")
 SMGSurveySDK.trackScreenView("cart", mapOf("tier" to "gold"))
 ```
 
-Use stable, lowercase, machine-readable names — they are matched against
-server-side rules. Tracking a screen does **not** imply a survey fires there;
-whether it does is a server-side decision.
+Use stable names matching the server's placement rules. A tracked screen does
+not necessarily trigger a survey. Screen views are also sent to the collection API.
 
 ### Events
 
 ```swift
 SMGSurveySDK.trackEvent(
     name: "order_completed",
-    properties: ["payment_method": "apple_pay", "order_id": "A1234"]
+    properties: ["payment_method": "apple_pay"]
 )
 ```
 
 ```kotlin
 SMGSurveySDK.trackEvent(
     "order_completed",
-    mapOf("payment_method" to "apple_pay", "order_id" to "A1234"),
+    mapOf("payment_method" to "google_pay"),
 )
 ```
 
-Properties are how SMG targets: a placement can require
-`payment_method == apple_pay` and fire only on that path. Agree the property names
-and their allowed values with SMG — an unexpected value simply fails to match, and
-nothing happens.
+Properties participate in placement matching. Agree their names and allowed
+values with SMG; unexpected values may not match any rule. Use non-PII metadata,
+not email addresses, phone numbers, payment details or user-entered free text.
 
-**Never put personal data in properties.** No emails, phone numbers, card numbers,
-free-text the user typed. These are non-PII attributes by contract.
-
-Entries that exceed the limits are **dropped whole, not truncated**, and only the
-OS log says so: a key over 64 characters, a value over 256, and beyond 20 keys only
-the first 20 alphabetically survive. Keep property sets small and short.
+The SDK accepts at most **20 properties**, with keys up to **64 characters** and
+values up to **256 characters**. Invalid entries are dropped and logged rather
+than truncated; excess keys are selected in lexicographic order.
 
 ### Manual presentation
 
-For a "Give feedback" button, where the user asked for it:
+For a feedback button:
 
 ```swift
-SMGSurveySDK.presentSurvey(surveyId: "svy_quick_feedback")
+SMGSurveySDK.presentSurvey(surveyId: "<your-survey-id>", from: viewController)
 ```
 
 ```kotlin
-SMGSurveySDK.presentSurvey("svy_quick_feedback")
+SMGSurveySDK.presentSurvey("<your-survey-id>")
 ```
 
-**This is not a force-show.** The survey must have a placement configured with
-`trigger_type: manual`; a valid survey ID with no manual placement does nothing,
-silently. If you want a button to open a specific survey, ask SMG to add that
-placement — this is the most common reason a "Give feedback" button appears dead.
+The survey needs a `manual` placement. Manual presentation bypasses the session
+throttle but still checks consent, configuration, entitlement, cooldown and
+whether another survey is active. The catalog's `hasManualPlacement` field helps
+populate a picker; it does not certify that a survey is currently eligible.
 
-Both platforms accept an optional `style` to override the survey's configured
-presentation for that one call. On iOS you may also pass an explicit
-`from: UIViewController`; omit it and the SDK finds the top-most one.
+Both platforms accept an optional `style` for that call: modal, bottom sheet or
+bottom-docked banner. On iOS, omit `from` to let the SDK find a presentation
+controller. On Android, the SDK uses the resumed Activity.
 
-To render a survey unconditionally while developing, use `previewSurvey` (§9),
-which ignores placements and gating entirely.
+### Locale
 
----
+The app/device locale is used by default. Set a BCP-47 override if your app manages
+its own language preference:
 
-## 6. When a survey actually appears
+```swift
+SMGSurveySDK.setLocaleOverride("es-UY")
+```
 
-A trigger is necessary but not sufficient. In order:
+```kotlin
+SMGSurveySDK.setLocaleOverride("es-UY")
+```
 
-| Gate | What it does |
+Pass `nil` / `null` to restore the default. The override is not persisted; reapply
+your app's choice at launch, preferably before configuring. Changes request
+configuration for the selected locale and affect later presentations. Translations
+must be authored server-side; an override does not translate missing content.
+Config caches are scoped by project, environment and locale.
+
+## 6. When a survey appears
+
+Normal presentation checks the following conditions:
+
+| Check | Behavior |
 |---|---|
-| Consent | Nothing happens if consent was withheld — see §8 |
-| One at a time | A survey is never shown over another one |
-| Entitlement | The project's entitlement must be active |
-| Session throttle | At most one survey per app session |
-| Cooldown | A survey that was shown will not return for its configured cooldown, which **survives app restarts** |
-| Placement conditions | The screen name / event name / properties must match |
+| Initialization, consent and configuration | SDK must be configured, consent granted and a usable config available |
+| One active survey | A second survey is skipped while one is active |
+| Entitlement | Config must permit survey presentation |
+| Session throttle | Automatic triggers respect the configured session limit; manual calls bypass it |
+| Cooldown | The survey's configured cooldown is checked, including for manual calls |
+| Placement | Trigger type, screen/event name and applicable properties must match |
+| Presenter and questionnaire | Host must be ready to present and the questionnaire must be renderable |
 
-`presentSurvey` **bypasses the session throttle** — the user explicitly asked — but
-**still respects the cooldown**, so it will not re-show a survey answered five
-minutes ago.
+Automatic screen/event triggers also skip presentation while the host is accepting
+text input or the keyboard is visible. Manual calls and previews can proceed.
+Suppression is recorded only after successful presentation readiness; preview
+never records it.
 
-Two consequences worth planning for:
+On a first launch without a cache, a screen/event can arrive before config fetch
+completes. Such a trigger is **not replayed automatically**. A later visit can
+trigger the survey. A usable cache reduces that dependency on later launches,
+but there is no fixed 200 ms readiness guarantee.
 
-- **A correct integration shows surveys rarely.** Seeing nothing is the expected
-  state most of the time. Use dry-run (§9) to see *why* rather than guessing.
-- **On the very first launch there is no cached config yet.** A screen tracked in
-  the first ~200 ms may not fire its placement until that screen is visited again.
-  Every later session is immediate, because the cache is warm.
-
----
+For integration checks, use the catalog and preview tools below, then verify the
+real screen/event/manual path with your project's placement rules.
 
 ## 7. Theming
 
-SMG configures the full theme server-side — 35 tokens including dark variants,
-fonts, radii and opacities. Your app does not need to do anything to be branded.
+Server configuration supplies 35 appearance fields, including dark variants,
+fonts, radii and opacities. Host overrides take precedence, then server values,
+then SDK defaults.
 
-If you want to override brand colours from the app, `setTheme` exposes **12
-tokens**. Anything left unset falls back to the server-side theme, then to SDK
-defaults.
+The host's `SMGTheme` exposes **11 color overrides and a font**: `primary`,
+`background`, `surface`, `text`, `accent`, `textOnAccent`, `textSecondary`,
+`textPlaceholder`, `border`, `borderControl`, `error`, and `font`. Set only what
+you want to override. Pass an empty theme to restore server/default values.
 
-**Swift** — all parameters are optional; set only what you mean to change.
+**Swift**
 
 ```swift
 SMGSurveySDK.setTheme(SMGTheme(
@@ -322,77 +339,62 @@ SMGSurveySDK.setTheme(SMGTheme(
 ))
 ```
 
-**Kotlin / Java** — use the Builder. The positional constructor would force you to
-spell out every preceding token, which is easy to get wrong.
+**Kotlin**
 
 ```kotlin
-SMGSurveySDK.setTheme(
-    SMGTheme.Builder()
-        .primary(0xFF003366.toInt())
-        .textOnAccent(0xFFFFFFFF.toInt())
-        .build()
-)
+import com.smg.surveysdk.SMGColor
+import com.smg.surveysdk.SMGTheme
+
+SMGSurveySDK.setTheme(SMGTheme(
+    primary = SMGColor(0xFF003366.toInt(), 0xFF88AACC.toInt()),
+    textOnAccent = SMGColor(0xFFFFFFFF.toInt()),
+))
 ```
 
-Colours are `UIColor` on iOS and packed ARGB `Int` on Android (same as
-`android.graphics.Color`).
+Java hosts can use `SMGTheme.Builder` (see §11). Its color setters accept a packed
+ARGB integer, a light/dark pair, or an `SMGColor`. The Kotlin constructor accepts
+`SMGColor`, not raw integers.
 
-The 12 tokens: `primary`, `background`, `surface`, `text`, `accent`,
-`textOnAccent`, `textSecondary`, `textPlaceholder`, `border`, `borderControl`,
-`error`, `font`.
-
-Everything else — spacing, type scale, component minimums, shadows, the disabled
-palette — is fixed by the SDK and not themable.
+Spacing, type scale, component minimums, shadows and the disabled palette are
+fixed by the SDK. There is no logo override.
 
 ### Validation
 
-Every token you supply is validated for contrast **individually**. One bad colour
-no longer discards your whole palette:
-
-- **BLOCK** — the value would make text unreadable. That single token falls back to
-  its default and the rejection is logged.
-- **WARN** — below target but usable. The value is kept and a warning is logged.
-
-To see what happened during bring-up:
+Contrast is validated when a theme is published in Forge. The SDK does not reject
+host or server colors for contrast. It range-checks scalar values such as radii,
+weights and opacities and exposes diagnostics from the server's
+`theme.validation_issues` along with local validation results:
 
 ```swift
-SMGSurveySDK.lastThemeValidationMessages()   // [String]
+SMGSurveySDK.lastThemeValidationMessages()
 ```
 
 ```kotlin
-SMGSurveySDK.lastThemeValidationMessages()   // List<String>
+SMGSurveySDK.lastThemeValidationMessages()
 ```
 
-An empty list means every token you supplied was accepted. This is worth checking
-once after you set a brand theme — a token can be silently swapped for a default
-and the survey will still look plausible.
+These describe the most recent theme resolution. An empty list is not an
+accessibility certification of your host override. Check the resulting palette
+in both appearances and at your supported text sizes.
 
 ### Dark mode
 
-The server-side theme carries a dark variant for each colour, and the SDK picks it
-in dark mode, falling back to the light value and then to its own default.
+For server colors, the cascade in dark mode is the `*_dark` field, then the light
+field, then the SDK default. Host overrides take precedence in both modes:
 
-For a **client override** the two platforms genuinely differ:
-
-- **iOS** resolves your palette twice, once per appearance, and validates each
-  against that mode's surfaces. Pass a **dynamic** `UIColor` — an asset-catalogue
-  colour set with Any/Dark appearances, or
-  `UIColor { $0.userInterfaceStyle == .dark ? darkBrand : lightBrand }` — and each
-  mode gets its own value. Pass a **static** `UIColor` and the same value has to
-  clear the contrast floor in both modes; if it fails in one, that token reverts to
-  the SDK default there.
-- **Android** has no per-mode override: `SMGTheme` carries plain ARGB `Int`s, so
-  whatever you set applies identically in light and dark. Leave a token unset to
-  let the server-side dark variant differentiate it.
-
-Either way, check your brand override in dark mode before shipping — a reverted
-token still renders a perfectly plausible survey.
-
----
+- **iOS:** use a dynamic `UIColor`, such as an asset-catalog color with Any/Dark
+  variants. A static `UIColor` supplies the same color in both modes.
+- **Android:** use `SMGColor(light, dark)`, or
+  `SMGColor.fromResource(R.color.brand)` backed by `res/values` and
+  `res/values-night`. `SMGColor(color)` uses one value in both modes.
 
 ## 8. Consent and privacy
 
-### Consent
+### Consent and deletion
+
+Consent defaults to granted until the host sets it. If your app requires prior
+consent, set it to `false` **before `configure`** and grant it only when your app's
+consent flow permits SDK activity:
 
 ```swift
 SMGSurveySDK.setConsent(granted: false)
@@ -402,178 +404,172 @@ SMGSurveySDK.setConsent(granted: false)
 SMGSurveySDK.setConsent(granted = false)
 ```
 
-With consent withheld the SDK stops evaluating triggers, stops refreshing
-configuration and stops submitting, on both platforms. The flag persists across
-launches (`UserDefaults` on iOS, shared preferences on Android).
+The choice persists across launches. With consent withheld, new triggers,
+tracking submissions, config refreshes and response delivery are gated. Previously
+queued responses remain stored and can retry when consent is granted again.
 
-One platform difference matters if you withdraw consent from a consent-management
-screen while a survey could be on screen: **Android dismisses a survey that is
-already displayed; iOS leaves it up.** On iOS the survey stays answerable and only
-the submission is discarded. If your flow needs the survey gone immediately on iOS,
-withdraw consent at a point where one cannot be showing.
+In 0.5.4, **Android cancels an active survey on withdrawal; iOS leaves it visible
+and gates its completion while consent is withheld**. Do not assume the consent
+setter dismisses iOS UI or retracts a request already sent.
 
-**The default is granted.** If your app operates under an opt-in regime, call
-`setConsent(granted: false)` before or immediately after `configure` and only flip
-it to `true` once the user has agreed. Do not rely on the default.
+For local deletion, call `SMGSurveySDK.deleteAllLocalData()` on either platform.
+It clears the config cache, queued responses and suppression state and cancels
+active presentation. It does not reset credentials or the consent choice, and it
+does not delete data already submitted to SMG. If the app also needs SDK activity
+to remain disabled, withhold consent before deletion.
 
-For a deletion request:
+### Data and storage
 
-```swift
-SMGSurveySDK.deleteAllLocalData()
-```
+The SDK sends survey answers and context such as screen/event names, supplied
+metadata, project/survey/placement identifiers, app and OS versions, locale and
+SDK version. Version 0.5.4 includes survey start and collection timestamps in UTC;
+they retain their original instants across offline response retries and depend on
+the device clock. Screen/event tracking also sends requests independently of
+survey responses.
 
-This clears what is on the device — the cached configuration, suppression history
-and any queued responses. It does **not** retract responses already submitted to
-SMG; route those through your SMG contact.
+The SDK does not add advertising identifiers, cross-app tracking or device
+fingerprinting. Keep host-supplied metadata consistent with your application's
+data disclosures. Queued responses and configuration are stored in app-private
+files; consent/cooldown use preferences. These are not SDK-encrypted secure stores.
 
-### What the SDK collects
+### Platform manifests
 
-Survey answers plus their non-PII context: trigger and screen context, the event
-properties you supplied, app and OS version, and locale. No advertising
-identifiers, no cross-app tracking, no device fingerprinting.
+The iOS framework bundles `PrivacyInfo.xcprivacy`, declaring:
 
-### iOS privacy manifest
+- No tracking or tracking domains.
+- Other User Content for App Functionality, not linked to identity or used for
+  tracking.
+- Required-reason API entries for `UserDefaults` (`CA92.1`) and file timestamps
+  (`C617.1`).
 
-The SDK ships its own `PrivacyInfo.xcprivacy`, which aggregates into your app's
-App Store privacy report automatically. It declares:
+Android's AAR declares `android.permission.INTERNET`, which merges into the host
+manifest. Review the built app's privacy report, merged manifest and store
+disclosures in the context of your complete app and actual data use.
 
-- `NSPrivacyTracking`: **false**, with no tracking domains
-- One collected data type: *Other User Content*, **not linked** to identity and
-  **not used for tracking**, for App Functionality
-- Two required-reason API declarations: `UserDefaults` (CA92.1) and file timestamps
-  (C617.1)
+## 9. Integration tools
 
-In your own App Store submission, declare the survey content your app collects
-through the SDK under the same category. The SDK's manifest covers the SDK; it does
-not answer for your app.
+Use Stage credentials and your own configured survey IDs when checking an
+integration. The SDK does not bundle test surveys.
 
-### Android
-
-The SDK contributes **no permissions** to your merged manifest. If you point it at
-a collection endpoint, your app needs `android.permission.INTERNET` — nearly every
-app already declares it. For Data Safety, disclose the same categories as above.
-
----
-
-## 9. Bring-up toolkit
-
-These exist so you can verify the integration without waiting for a real survey to
-fire naturally.
-
-### Dry run
-
-The single most useful tool. Nothing is presented and nothing is submitted; instead
-every trigger evaluation is logged with the reason it did or did not match.
+### Inspect the configured catalog — new in 0.5.4
 
 ```swift
-SMGSurveySDK.setDryRun(true)
+let surveys = SMGSurveySDK.configuredSurveys()
+let manualSurveys = surveys.filter { $0.hasManualPlacement }
 ```
 
 ```kotlin
-SMGSurveySDK.setDryRun(true)
+val surveys = SMGSurveySDK.configuredSurveys()
+val manualSurveys = surveys.filter { it.hasManualPlacement }
 ```
 
-You will see lines like `no placement matched` or
-`matched placement plc_post_checkout (survey svy_post_checkout)`. This answers "why
-is nothing happening" in seconds. **Turn it off before shipping.**
+This returns a snapshot in server order, including usable cached configuration.
+Each `SMGSurveyInfo` contains `surveyId`, `name`, `presentationStyle` and
+`hasManualPlacement`. It makes no HTTP request and returns an empty list before
+config is available or after cache deletion. Read it again after a refresh has
+completed; there is no public refresh-completion callback. Metadata is not an
+eligibility check. The catalog is available to Swift, Kotlin and Java; the
+Objective-C bridge does not expose it in 0.5.4.
 
 ### Preview a survey
 
-Renders a specific survey immediately, ignoring every gate — entitlement, throttle,
-cooldown, conditions. It never records suppression and never submits, so previewing
-does not burn a cooldown or pollute your data.
-
 ```swift
-SMGSurveySDK.previewSurvey(surveyId: "svy_quick_feedback")
+SMGSurveySDK.previewSurvey(surveyId: "<your-survey-id>", from: viewController)
 ```
 
 ```kotlin
-SMGSurveySDK.previewSurvey("svy_quick_feedback")
+SMGSurveySDK.previewSurvey("<your-survey-id>")
 ```
 
-Use preview to check theming and layout; use `presentSurvey` to test the real path.
+Preview bypasses placements, entitlement, cooldown and session throttle. It still
+requires initialization, consent, a survey in config, no active survey, a usable
+presenter and a renderable questionnaire. It records no suppression and does not
+enqueue its response. Other SDK networking remains enabled.
 
-### Reset the session throttle
+Use preview for appearance and layout, then use normal triggers or `presentSurvey`
+to verify the actual integration rules.
 
-Without leaving the app, so you can trigger a second survey in one session:
+### Dry run
 
 ```swift
-SMGSurveySDK.resetSessionThrottle()
+SMGSurveySDK.setDryRun(true)
 ```
 
-### Force a configuration refresh
+```kotlin
+SMGSurveySDK.setDryRun(true)
+```
+
+Surveys **still appear**. Trigger outcomes and newly built responses are logged,
+but those responses are not enqueued. Normal presentation still records
+suppression. Config fetches, tracked screen/events and delivery of responses
+already queued can continue; dry run is not an offline mode. Set it back to
+`false` when checking real submission and before shipping normal collection.
+
+### Configuration, suppression and queue controls
+
+Both platforms expose these calls with the same spelling:
 
 ```swift
 SMGSurveySDK.refreshConfiguration()
+SMGSurveySDK.resetSessionThrottle()
+SMGSurveySDK.pendingResponseCount()
+SMGSurveySDK.flushPendingResponses()
 ```
 
-Useful right after SMG changes something server-side; otherwise the SDK refreshes
-on its own schedule.
+Refresh is asynchronous and also occurs at initialization, on foreground and on
+the configured interval (default 3,600 seconds). Resetting the session throttle
+does not clear cooldowns. Flushing requests a queue drain; it does not override
+consent or HTTP backpressure. Queue count is a local snapshot, not a delivery
+receipt.
 
-### Simulate failure
+To inspect a survey's default presentation, use
+`configuredStyle(surveyId: "<your-survey-id>")` in Swift or
+`configuredStyle("<your-survey-id>")` in Kotlin. Unknown IDs/no config return
+`nil` / `null`.
 
-```swift
-SMGSurveySDK.setMockMode(.offline)      // .normal, .offline, .revokedKey
-```
+### Exercise offline behavior
 
-Exercises the offline queue and the revoked-key path without touching the network.
-This drives the **bundled mock**, so it is a bring-up aid rather than a test against
-your real endpoint.
-
-### Inspect the queue
-
-```swift
-SMGSurveySDK.pendingResponseCount()   // Int
-SMGSurveySDK.flushPendingResponses()  // attempt a drain now
-```
-
-### Check the configured presentation
-
-```swift
-SMGSurveySDK.configuredStyle(surveyId: "svy_quick_feedback")  // SMGPresentationStyle?
-```
-
-Returns what the server config says for that survey, so a debug screen can show the
-real default rather than guessing.
-
----
+Load a valid config first, disable device networking, complete a normal survey,
+and check `pendingResponseCount()`. Restore networking and foreground the app or
+call `flushPendingResponses()`, then check the queue and API logs. Use a Stage
+project and turn dry run off for this test. There is no `setMockMode` or
+`mockReceivedResponses` API in 0.5.4.
 
 ## 10. Offline and reliability
 
-Completed responses are written to disk **before** any network attempt, so a
-response survives losing connectivity, backgrounding, or the process being killed.
+Completed responses, and partial responses with at least one answer, are queued
+in app-private files before delivery is attempted. Empty dismissals produce no
+response. Successfully persisted items survive process restarts; storage failures
+are logged. This queue is for survey responses, not a durable screen/event queue.
 
-The SDK does **not** watch for connectivity returning — there is no reachability
-monitor. A queued response is retried at the next app foreground, at the next
-`configure`, when consent is granted, or when you call `flushPendingResponses()`
-explicitly. In practice that means delivery on the user's next visit to the app
-rather than the moment the network comes back.
+Delivery is attempted when a response is enqueued, when configuration initializes,
+on foreground, when consent is granted and on explicit flush. There is no
+connectivity monitor that guarantees an immediate retry when networking returns.
 
-Configuration is cached the same way: with no network the SDK serves the last
-config it fetched, so surveys keep working offline. On a device that has never
-fetched successfully, nothing shows.
+Response delivery uses a stable response ID for idempotency. HTTP 429 pauses
+delivery using integer-seconds `Retry-After` (default 60 seconds); the deadline is
+in memory, so a restart may retry earlier. Retriable failures keep the queued
+response. Permanent rejections (HTTP 400/409/413/415/422) discard it and log the
+failure. HTTP 409 is not a successful duplicate acknowledgment; a duplicate is
+acknowledged by a 2xx response with the corresponding body status.
 
-The cooldown and throttle records persist too — that is what makes "once per user
-per period" hold across restarts rather than resetting every launch.
-
----
+A usable cached configuration can support presentation offline. Without a
+successful fetch or usable cache, nothing can render. Cooldown history persists;
+the session throttle is an in-memory counter and resets with the process.
 
 ## 11. API reference
 
-Every method on the integration surface is fail-safe: none throws, none blocks on
-the network. Calls made before `configure` are held or ignored rather than crashing.
+These signatures describe the released 0.5.4 facade. Network work is asynchronous;
+snapshot getters do not wait for a fetch. `pendingResponseCount()` synchronously
+reads the local queue, so avoid polling it on a hot UI path.
 
-The debug helpers in §9 are held to a looser standard — on iOS they are not wrapped
-in the same catch-all, and `pendingResponseCount()` blocks briefly on an internal
-queue. They are bring-up tools, not something to call on a hot path in production.
-
-### Swift — `SMGSurveySDK` (module `SMGSurveyKit`)
+### Swift — `SMGSurveySDK` in `SMGSurveyKit`
 
 ```swift
 static var sdkVersion: String { get }
 
-static func configure(apiKey: String, projectId: String, environment: SMGEnvironment = .production)
-
+static func configure(apiKey: String, projectId: String,
+                      environment: SMGEnvironment = .production)
 static func trackScreenView(name: String, properties: [String: String] = [:])
 static func trackEvent(name: String, properties: [String: String] = [:])
 static func presentSurvey(surveyId: String, style: SMGPresentationStyle? = nil,
@@ -583,65 +579,70 @@ static func previewSurvey(surveyId: String, style: SMGPresentationStyle? = nil,
 
 static func setTheme(_ theme: SMGTheme)
 static func setConsent(granted: Bool)
-static func setLocaleOverride(_ localeIdentifier: String?)   // not persisted; re-apply after each configure
+static func setLocaleOverride(_ localeIdentifier: String?)
 static func deleteAllLocalData()
-
 static func setCollectionBaseURL(_ url: URL?)
 static func refreshConfiguration()
+static func configuredSurveys() -> [SMGSurveyInfo]
 static func configuredStyle(surveyId: String) -> SMGPresentationStyle?
 static func lastThemeValidationMessages() -> [String]
-
 static func setDryRun(_ enabled: Bool)
 static func resetSessionThrottle()
-static func setMockMode(_ mode: SMGMockMode)
 static func pendingResponseCount() -> Int
 static func flushPendingResponses()
-static func mockReceivedResponses() -> [String]
 ```
 
-Public types: `SMGEnvironment { .staging, .production }`,
-`SMGPresentationStyle { .modal, .bottomSheet, .banner }`,
-`SMGMockMode { .normal, .offline, .revokedKey }`, and `SMGTheme` (12 optional
-`UIColor?` tokens plus `font: String?`).
-
-`SMGThemeGallery` is also public — five ready-made palettes used for QA. Two of them
-are deliberately rule-violating, to exercise the token fallback, so treat it as a
-test fixture rather than a source of brand themes.
+Types used by the facade: `SMGEnvironment` (`.staging`, `.production`),
+`SMGPresentationStyle` (`.modal`, `.bottomSheet`, `.banner`), `SMGTheme` and
+`SMGSurveyInfo`. `SMGThemeGallery` also supplies five example palettes; these are
+demo themes, not a validation of your app's accessibility.
 
 ### Objective-C
 
-The Swift facade is not directly callable from Objective-C — static methods on a
-plain Swift class, plus enums and a struct, none of which bridge. The SDK ships
-`SMGSurveySDKBridge` to cover that, so your app needs no shim of its own.
+The framework ships `SMGSurveySDKBridge` and `SMGThemeBridge`; no host Swift shim
+is needed. This Stage example belongs in app initialization:
 
 ```objc
 @import SMGSurveyKit;
 
-[SMGSurveySDKBridge configureWithApiKey:@"<key>"
-                              projectId:@"<project>"
-                            environment:@"production"];
+[SMGSurveySDKBridge setConsentGranted:hasSurveyConsent];
+[SMGSurveySDKBridge configureWithApiKey:@"<staging-api-key>"
+                              projectId:@"<staging-project-id>"
+                            environment:@"staging"];
+```
 
+For production, call `[SMGSurveySDKBridge setCollectionBaseURL:collectionBaseURL]`
+before configuration and use production credentials and `@"production"`.
+
+```objc
 [SMGSurveySDKBridge trackScreenViewWithName:@"cart"];
 [SMGSurveySDKBridge trackEventWithName:@"order_completed"
                             properties:@{@"payment_method": @"apple_pay"}];
+[SMGSurveySDKBridge presentSurveyWithId:@"<your-survey-id>" from:self];
 
-[SMGSurveySDKBridge presentSurveyWithId:@"svy_quick_feedback" from:self];
-
-SMGThemeBridge *theme = [SMGThemeBridge new];   // set only what you override
+SMGThemeBridge *theme = [SMGThemeBridge new];
 theme.primary = brandColor;
 [SMGSurveySDKBridge setTheme:theme];
+
+[SMGSurveySDKBridge setDryRunEnabled:YES];
+[SMGSurveySDKBridge previewSurveyWithId:@"<your-survey-id>"
+                                 style:SMGPresentationStyleBridgeDefault
+                                  from:self];
 ```
 
-The environment is a string (`@"staging"` / `@"production"`) and theme colours are
-`UIColor`. Debug affordances live on `SMGMockModeBridge`.
+Presentation also has a `presentSurveyWithId:style:from:` overload. Bridge style
+values are `Default`, `Modal`, `BottomSheet` and `Banner`, prefixed with
+`SMGPresentationStyleBridge`. `Default` preserves the configured style. The
+bridge exposes locale, consent/deletion, theme diagnostics, refresh, session
+reset, queue controls and SDK version, but not `configuredSurveys()` in 0.5.4.
 
 ### Kotlin — `com.smg.surveysdk.SMGSurveySDK`
 
 ```kotlin
 val sdkVersion: String
 
-fun configure(context: Context?, apiKey: String?, projectId: String?, env: Env? = Env.PRODUCTION)
-
+fun configure(context: Context?, apiKey: String?, projectId: String?,
+              env: Env? = Env.PRODUCTION)
 fun trackScreenView(name: String?, properties: Map<String, String>? = emptyMap())
 fun trackEvent(name: String?, properties: Map<String, String>? = emptyMap())
 fun presentSurvey(surveyId: String?, style: SMGPresentationStyle? = null)
@@ -649,88 +650,72 @@ fun previewSurvey(surveyId: String?, style: SMGPresentationStyle? = null)
 
 fun setTheme(theme: SMGTheme?)
 fun setConsent(granted: Boolean)
-fun setLocaleOverride(localeTag: String?)   // not persisted; re-apply after each configure
+fun setLocaleOverride(localeTag: String?)
 fun deleteAllLocalData()
-
 fun setCollectionBaseUrl(url: String?)
 fun refreshConfiguration()
+fun configuredSurveys(): List<SMGSurveyInfo>
 fun configuredStyle(surveyId: String?): SMGPresentationStyle?
 fun lastThemeValidationMessages(): List<String>
-
 fun setDryRun(enabled: Boolean)
 fun resetSessionThrottle()
-fun setMockMode(mode: SMGMockMode?)
 fun pendingResponseCount(): Int
 fun flushPendingResponses()
-fun mockReceivedResponses(): List<String>
 ```
 
-Public types: `Env { STAGING, PRODUCTION }`,
-`SMGPresentationStyle { MODAL, BOTTOM_SHEET, BANNER }`,
-`SMGMockMode { NORMAL, OFFLINE, REVOKED_KEY }`, and `SMGTheme` with its `Builder`.
+Types: `Env` (`STAGING`, `PRODUCTION`), `SMGPresentationStyle` (`MODAL`,
+`BOTTOM_SHEET`, `BANNER`), `SMGTheme`/`SMGTheme.Builder`, `SMGColor` and
+`SMGSurveyInfo`. Nullable required inputs such as credentials are rejected
+internally; supply real values. `setTheme(null)` does not clear a theme; use
+`SMGTheme()` or an empty builder.
 
 ### Java
 
-Everything is `@JvmStatic`, so the call shape is the same:
+Facade methods are static, with shorter overloads for optional arguments. In
+`Application.onCreate()`:
 
 ```java
-SMGSurveySDK.configure(this, "<key>", "<project>", Env.PRODUCTION);
-SMGSurveySDK.trackScreenView("cart");
-SMGSurveySDK.trackEvent("order_completed",
-        Collections.singletonMap("payment_method", "apple_pay"));
-
-SMGSurveySDK.setTheme(new SMGTheme.Builder()
-        .primary(0xFF003366)
-        .textOnAccent(0xFFFFFFFF)
-        .build());
+SMGSurveySDK.setConsent(hasSurveyConsent);
+SMGSurveySDK.configure(this, "<staging-api-key>", "<staging-project-id>", Env.STAGING);
 ```
 
-`@JvmOverloads` generates the shorter arities, so the optional parameters can be
-omitted from Java too.
+As the app is used:
 
----
+```java
+SMGSurveySDK.trackScreenView("cart");
+SMGSurveySDK.trackEvent("order_completed",
+        Collections.singletonMap("payment_method", "google_pay"));
+
+SMGSurveySDK.setTheme(new SMGTheme.Builder()
+        .primary(0xFF003366, 0xFF88AACC)
+        .textOnAccent(0xFFFFFFFF)
+        .build());
+
+List<SMGSurveyInfo> surveys = SMGSurveySDK.configuredSurveys();
+String version = SMGSurveySDK.getSdkVersion();
+```
+
+Import the SDK classes from `com.smg.surveysdk` and collection types from
+`java.util`. Catalog fields are read through getters such as `getSurveyId()` and
+`getHasManualPlacement()`.
 
 ## 12. Troubleshooting
 
-**No survey ever appears.**
-Turn on dry run (§9) — it prints the reason for every evaluation. The usual causes,
-in the order they occur: consent withheld, no config fetched yet (first launch),
-the session throttle already spent, a cooldown still running, or the placement
-conditions not matching your property values.
+| Symptom | Checks |
+|---|---|
+| No survey appears | Confirm endpoint, credentials, consent, a nonempty config, entitlement, placement rules, cooldown/session limit and a ready host. Preview helps separate configuration/presenter problems from normal trigger gating. |
+| `notConfigured` in logs | Production needs an explicit base URL. Setting `nil`/`null` clears networking. Set the endpoint and request a refresh; there is no mock fallback. |
+| First screen misses its placement | The first config may still be loading. Track the next real appearance; do not assume a fixed startup delay or automatic replay. |
+| `presentSurvey` does nothing | Check that the survey has a manual placement and is not suppressed. Preview bypasses those rules but still needs config, consent and a ready presenter. |
+| Android does not present | Configure before the first Activity resumes and use a resumed `ComponentActivity` subclass. Automatic presentation can also be skipped during text entry. |
+| Android fails during dependency/build checks | Check compileSdk 36+, compatible AGP/JDK and Kotlin 2.1+ for Kotlin callers. Let Gradle resolve the Maven dependencies; copying only the AAR is insufficient. |
+| iOS cannot import the framework | Check the app target's package product, iOS deployment target and Xcode compatibility. The module is `SMGSurveyKit`, not `SMGSurveySDK`. |
+| `configuredSurveys` is missing at compile time | Update the dependency to 0.5.4. The Objective-C bridge does not expose this method. |
+| Catalog is empty | Config is not available, was deleted or contains no surveys. Check refresh/network logs; reading the catalog does not fetch it. |
+| Unexpected sample surveys appear | Check the project, environment and API config. This release does not contain a demo survey fallback. |
+| Brand color is wrong | Check host override precedence, color token and light/dark values. On Android use `SMGColor` in the constructor. Inspect diagnostics after presentation; the SDK does not reject colors for contrast. |
+| Responses do not arrive | Check dry run/preview, pending queue count, consent, endpoint, auth and API logs. A nonzero queue may be waiting for retry or backpressure; a zero count is not proof of acceptance because permanent rejections are discarded. |
 
-**I see surveys about a restaurant I have never heard of.**
-That is the bundled mock — you have not set a collection base URL. See §4.
-
-**Nothing happens on first launch, then it works.**
-Expected: on the very first run there is no cached config, so a screen tracked in
-the first ~200 ms can miss its placement. It resolves on the next visit and every
-later session is immediate.
-
-**`presentSurvey` does nothing.**
-Most often the survey has no `manual` placement configured — a valid survey ID is
-not enough, and the failure is silent. Ask SMG to add one. Failing that, the
-cooldown still applies to manual presentation. Confirm with `previewSurvey`, which
-ignores placements and gating: if preview shows the survey, the survey itself is
-fine and you are looking at a missing placement or a gate.
-
-**Android: nothing presents.**
-The current Activity must be an AndroidX `ComponentActivity`
-(`AppCompatActivity`/`FragmentActivity` qualify). A plain `android.app.Activity`
-does not.
-
-**Android: Kotlin build fails on SDK metadata.**
-Kotlin 2.1+ is required for Kotlin consumers of the binary AAR. Java callers are
-unaffected.
-
-**My brand colour is not showing.**
-Call `lastThemeValidationMessages()`. A token that fails its contrast rule is
-replaced with a default (BLOCK) and logged — the survey still renders, which is why
-this is easy to miss.
-
-**Responses are not arriving at SMG.**
-Check `pendingResponseCount()`. A non-zero count means they are queued locally, so
-this is a connectivity or endpoint problem rather than a lost response. Confirm the
-base URL from §4 and that mock mode is not left on `.offline`.
-
-Still stuck: contact your SMG implementation engineer with your project ID, the SDK
-version (`sdkVersion`), and the dry-run log.
+For support, provide your project ID, platform, SDK version, integration steps and
+relevant SDK logs. Exclude API keys, personal data and survey answer content from
+logs shared for troubleshooting.
