@@ -19,8 +19,8 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "SMGSurveyKit",
-            url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/download/0.5.4/SMGSurveyKit.xcframework.zip",
-            checksum: "2899db8c4b06cd1e6b683a6ef2fc520e317de873c7a9222c8ca44e7d1e83a843"
+            url: "https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/download/0.5.5/SMGSurveyKit.xcframework.zip",
+            checksum: "230a26c5fe311c4c5529c3858d8af19cace0bfdc65e574be35ce85d2adcbd9a0"
         )
     ]
 )
