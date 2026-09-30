@@ -1,8 +1,8 @@
 # Integration guide
 
 Add native surveys to your app in four steps: install, configure, track and test.
-This guide covers **[SDK 0.5.4](https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/tag/0.5.4)**,
-checked against its source and published binaries on September 18, 2026.
+This guide covers **[SDK 0.5.5](https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/tag/0.5.5)**,
+checked against its source and published binaries on September 30, 2026.
 
 ## Before you start
 
@@ -24,7 +24,7 @@ Compose. Gradle resolves the SDK's AndroidX/Compose dependencies.
 ### iOS
 
 In Xcode, choose **File → Add Package Dependencies…**, enter this URL, select
-version **0.5.4** and add **SMGSurveyKit** to your app target:
+version **0.5.5** and add **SMGSurveyKit** to your app target:
 
 ```text
 https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist
@@ -38,7 +38,7 @@ maven { url = uri("https://servicemanagementgroup.github.io/smg-mobile-sdk-dist/
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.smg:smg-surveysdk:0.5.4")
+    implementation("com.smg:smg-surveysdk:0.5.5")
 }
 ```
 
