@@ -1,6 +1,6 @@
 # API reference
 
-Optional controls and signatures for **SDK 0.5.4**. Start with the
+Optional controls and signatures for **SDK 0.5.5**. Start with the
 [integration guide](INTEGRATION.md) for installation and a working setup.
 
 ## Configuration
@@ -92,7 +92,8 @@ Local files/preferences are app-private, without SDK-level encryption. iOS bundl
 `configuredSurveys()` returns current/cached survey metadata in server order:
 `surveyId`, `name`, `presentationStyle` and `hasManualPlacement`. It does not fetch
 configuration or check eligibility. It returns an empty list without config.
-Swift, Kotlin and Java expose it; the Objective-C bridge does not in 0.5.4.
+Swift, Objective-C, Kotlin and Java expose it. Objective-C uses immutable
+`SMGSurveyInfoBridge` snapshots through `SMGSurveySDKBridge.configuredSurveys`.
 
 `presentSurvey` and `previewSurvey` accept an optional style: modal, bottom sheet
 or bottom-docked banner. Omitting it uses the configured style. iOS also accepts
@@ -219,7 +220,26 @@ The style enum uses the prefix `SMGPresentationStyleBridge` with `Default`,
 `Modal`, `BottomSheet` or `Banner`. Normal presentation also has a
 `presentSurveyWithId:style:from:` overload. For dry run use `setDryRunEnabled:`.
 Locale, consent/deletion, refresh, theme diagnostics and queue controls are
-available; `configuredSurveys()` is not exposed by this bridge.
+also available.
+
+SDK 0.5.5 adds catalog snapshots and the reference theme gallery:
+
+```objc
+NSArray<SMGSurveyInfoBridge *> *surveys = [SMGSurveySDKBridge configuredSurveys];
+// Let the user select a catalog entry with hasManualPlacement == YES.
+// Reading the catalog does not fetch configuration or establish eligibility.
+
+NSArray<SMGThemeGalleryEntryBridge *> *palettes = [SMGSurveySDKBridge themeGallery];
+if (palettes.count > 0) {
+    [SMGSurveySDKBridge setTheme:palettes.firstObject.theme];
+}
+```
+
+Catalog properties (`surveyId`, `name`, `presentationStyle`, `hasManualPlacement`)
+are read-only; previously returned snapshots remain unchanged after a configuration
+refresh or deletion. The catalog is empty when no configuration is available.
+Gallery entries expose `name`, `note` and `theme`. Each call returns independent
+mutable theme builders, so changing a palette does not modify later calls.
 
 ## Kotlin
 

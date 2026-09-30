@@ -7,12 +7,12 @@ appear; the SDK renders them and sends responses to the collection API.
 This repository distributes the compiled SDK. The source is maintained privately
 by SMG.
 
-**Documented version: [0.5.4](https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/tag/0.5.4).**
+**Documented version: [0.5.5](https://github.com/ServiceManagementGroup/smg-mobile-sdk-dist/releases/tag/0.5.5).**
 
 | | iOS | Android |
 |---|---|---|
 | Install with | Swift Package Manager | Gradle / Maven |
-| Artifact | `SMGSurveyKit.xcframework` | `com.smg:smg-surveysdk:0.5.4` |
+| Artifact | `SMGSurveyKit.xcframework` | `com.smg:smg-surveysdk:0.5.5` |
 | Minimum OS | iOS 15 | Android API 26 |
 | Host languages | Swift, Objective-C | Kotlin, Java |
 
