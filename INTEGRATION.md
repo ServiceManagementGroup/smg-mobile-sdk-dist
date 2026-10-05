@@ -6,9 +6,9 @@ checked against its source and published binaries on September 30, 2026.
 
 ## Before you start
 
-Ask SMG for your API key, project ID and configured screen/event names. Surveys
-and their trigger rules come from the server. For production, also request the
-full HTTPS collection base URL.
+Ask SMG for your API key and project ID, and tell SMG where surveys should
+appear (see [how surveys appear](#how-surveys-appear)). For production, also
+request the full HTTPS collection base URL.
 
 | iOS | Android |
 |---|---|
@@ -18,6 +18,35 @@ full HTTPS collection base URL.
 On Android, presentation requires an AndroidX `ComponentActivity`;
 `AppCompatActivity` and `FragmentActivity` qualify. Your app can use Views or
 Compose. Gradle resolves the SDK's AndroidX/Compose dependencies.
+
+## How surveys appear
+
+Your app sends screen views and events with any names you choose. Tell SMG which
+screens or events should show a survey; SMG configures those rules and the SDK
+checks them on the device. Your app can also show a survey directly from code.
+
+| Option | Your app calls | SMG configures |
+|---|---|---|
+| **Screen view** | `trackScreenView` when a screen appears | Which screen shows which survey |
+| **Event** | `trackEvent` when an action completes | Which event shows which survey |
+| **Manual** | `presentSurvey` with a survey ID, wherever your app decides | A manual placement for that survey |
+
+For screen views and events, SMG can also show a survey only when the properties
+you send match exact values, such as `payment_method` = `apple_pay`; all
+conditions must match. SMG also sets each survey's cooldown and presentation
+(bottom sheet, centered modal or banner, and whether users can dismiss it), and
+a project limit of automatic surveys per session.
+
+**Screen view and event rules change without an app release.** SMG can switch
+the survey a screen or event shows, or change its questions, conditions,
+frequency and presentation. Devices apply changes on their next configuration
+refresh: at launch, when the app returns to the foreground and periodically, at
+an interval set by SMG. Any screen or event your app already sends can start
+showing a survey later; one your app does not send yet needs an app release.
+
+**Manual calls keep the survey ID in your app code.** SMG can still edit that
+survey without a release, but showing a different survey requires changing the
+ID and releasing the app.
 
 ## 1. Install
 
@@ -102,7 +131,9 @@ finished. A second call does not switch credentials or project.
 ## 3. Track screens and actions
 
 Send a screen view when the screen becomes visible and an event when the action
-happens. Use names and properties that match your project's configured rules.
+happens. Use any names and properties that describe your app. A survey appears
+only when SMG has configured a rule for that screen or event, using the exact
+name and property values your app sends, including case.
 
 **Swift**
 
@@ -125,9 +156,10 @@ Avoid sending screen views on every SwiftUI body evaluation or Compose
 recomposition. Properties should contain non-PII context: up to 20 keys, with
 64 characters per key and 256 per value. Invalid entries are dropped and logged.
 
-### Add a feedback button
+### Show a survey from your code
 
-Ask SMG for a survey with a **manual placement**, then call this from the button:
+To decide in code when a survey appears, for example from a feedback button or
+at the end of a flow, ask SMG for a survey with a **manual placement** and call:
 
 ```swift
 SMGSurveySDK.presentSurvey(surveyId: "<your-survey-id>", from: viewController)
@@ -138,9 +170,10 @@ SMGSurveySDK.presentSurvey("<your-survey-id>")
 ```
 
 Manual calls bypass the session limit but still respect the survey's cooldown
-(minimum time between presentations). All normal triggers need consent, a loaded
-config, an enabled project and a ready screen; only one survey can be active.
-Automatic triggers also skip presentation during text entry.
+(minimum time between presentations); ask SMG for a cooldown that suits how
+often you call it. All normal triggers need consent, a loaded config, an enabled
+project and a ready screen; only one survey can be active. Automatic triggers
+also skip presentation during text entry.
 
 On first launch, a screen/event can arrive before config loads. It is not replayed
 automatically; a later screen visit or event can trigger the survey.
@@ -172,7 +205,7 @@ config is available. Preview bypasses placement rules, entitlement and suppressi
 but still needs consent, a configured survey and a ready presenter, with no survey
 already active. It does not submit its response or record a cooldown.
 
-Then test a **normal screen/event trigger or feedback button**, answer the survey
+Then test a **normal screen/event trigger or manual call**, answer the survey
 and confirm receipt with SMG. Keep dry run off for this submission check.
 
 `setDryRun(true)` lets surveys appear but logs new responses instead of enqueueing
@@ -184,7 +217,8 @@ be sent. Set it back to `false` for normal collection.
 | Problem | Check |
 |---|---|
 | Catalog is empty | Credentials, endpoint and configuration-fetch logs. Reading the catalog does not wait for a fetch. |
-| Preview works but normal presentation does not | Placement rules, project entitlement, consent, cooldown and session limit. A feedback button needs a manual placement. |
+| Preview works but normal presentation does not | Rules use the exact screen/event names and property values your app sends. Also check project entitlement, consent, cooldown and session limit. Manual calls need a manual placement. |
+| An SMG change does not appear | Changes apply after the next configuration refresh: relaunch the app or bring it back to the foreground. A survey shown recently may still be in cooldown on that device. |
 | Nothing shows on the first screen | Config may still be loading. Try the next real appearance; there is no fixed readiness delay. |
 | Android does not present | Configure in `Application.onCreate()` and use a resumed `ComponentActivity` subclass. |
 | Responses do not arrive | Check preview/dry run, consent, endpoint and API logs. Inspect `pendingResponseCount()` and request a retry with `flushPendingResponses()`. |
